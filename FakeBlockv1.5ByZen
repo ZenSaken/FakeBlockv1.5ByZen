@@ -1,5 +1,7 @@
--- Fixed FakeBlock GUI (LocalScript)
--- Put this as a LocalScript in StarterPlayer -> StarterPlayerScripts (NOT the command bar)
+-- FakeBlockv1.5ByZen.lua
+-- Client-only LocalScript content. Put this file in your GitHub repo's main branch,
+-- then load with:
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/ZenSaken/FakeBlockv1.5ByZen/main/FakeBlockv1.5ByZen.lua"))()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -7,20 +9,19 @@ local RunService = game:GetService("RunService")
 
 local localPlayer = Players.LocalPlayer
 
--- Animation IDs (your values)
+-- Animation IDs
 local ANIM_NORMAL_ID  = "72722244508749"
 local ANIM_M34_ID     = "96959123077498"
 local ANIM_SPECIAL_ID = "95802026624883"
 
-local GUI_NAME = "FB_Fixed_Draggable_Mode_v1"
+-- GUI / behavior
+local GUI_NAME = "FakeBlockv1_5_ByZen"
+local modes = {"Normal","M3&4","Special"}
+local modeIndex = 1
 
--- Modes
-local modes = {"Normal", "M3&4", "Special"}
-local modeIndex = 1 -- start on "Normal"
-
--- animation cache
+-- animation helpers
 local animator, currentTrack
-local animations = {}
+local animationCache = {}
 
 local function ensureAnimator()
     local char = localPlayer.Character or localPlayer.CharacterAdded:Wait()
@@ -34,12 +35,12 @@ local function ensureAnimator()
     return animator
 end
 
-local function getAnimObject(id)
-    if animations[id] then return animations[id] end
+local function getAnim(id)
+    if animationCache[id] then return animationCache[id] end
     local a = Instance.new("Animation")
-    a.Name = "FBAnim_"..id
-    a.AnimationId = "rbxassetid://"..id
-    animations[id] = a
+    a.Name = "FBAnim_" .. id
+    a.AnimationId = "rbxassetid://" .. id
+    animationCache[id] = a
     return a
 end
 
@@ -55,22 +56,22 @@ local function playAnimId(id, statusLabel)
         if statusLabel then statusLabel.Text = "No Humanoid" end
         return
     end
-    local anim = getAnimObject(id)
+    local anim = getAnim(id)
     stopCurrent()
     local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
     if not ok or not track then
         if statusLabel then statusLabel.Text = "Load fail" end
-        warn("Animation load failed:", id)
+        warn("Failed to load animation:", id)
         return
     end
     track.Priority = Enum.AnimationPriority.Action
     pcall(function() track:Play() end)
     currentTrack = track
-    if statusLabel then statusLabel.Text = "Playing" end
     track.Stopped:Connect(function()
-        if statusLabel then statusLabel.Text = "Idle" end
         if currentTrack == track then currentTrack = nil end
+        if statusLabel then statusLabel.Text = "Idle" end
     end)
+    if statusLabel then statusLabel.Text = "Playing" end
 end
 
 local function playByMode(m, statusLabel)
@@ -83,238 +84,67 @@ local function playByMode(m, statusLabel)
     end
 end
 
--- Create GUI (draggable header)
+-- Build GUI (small, left, draggable header)
 local function createGui()
     local pg = localPlayer:WaitForChild("PlayerGui")
-    local old = pg:FindFirstChild(GUI_NAME)
-    if old then old:Destroy() end
+    if pg:FindFirstChild(GUI_NAME) then pg[GUI_NAME]:Destroy() end
 
-    local sg = Instance.new("ScreenGui")
+    local sg = Instance.new("ScreenGui", pg)
     sg.Name = GUI_NAME
     sg.ResetOnSpawn = false
-    sg.Parent = pg
 
-    local frame = Instance.new("Frame")
+    local frame = Instance.new("Frame", sg)
     frame.Name = "Main"
-    frame.Size = UDim2.new(0, 200, 0, 120)
-    frame.Position = UDim2.new(0, 12, 0.5, -60) -- left-center
-    frame.BackgroundColor3 = Color3.fromRGB(24,26,32)
+    frame.Size = UDim2.new(0, 220, 0, 128)
+    frame.Position = UDim2.new(0, 8, 0.45, -64)
+    frame.BackgroundColor3 = Color3.fromRGB(22,22,26)
     frame.BorderSizePixel = 0
     frame.Active = true
-    frame.Parent = sg
+    frame.ZIndex = 2
     local corner = Instance.new("UICorner", frame); corner.CornerRadius = UDim.new(0,10)
 
-    -- Header (this area is draggable)
+    -- header (draggable)
     local header = Instance.new("Frame", frame)
     header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 32)
-    header.Position = UDim2.new(0, 0, 0, 0)
+    header.Size = UDim2.new(1,0,0,36)
+    header.Position = UDim2.new(0,0,0,0)
     header.BackgroundTransparency = 0.12
-    header.BackgroundColor3 = Color3.fromRGB(18,20,24)
     local hcorner = Instance.new("UICorner", header); hcorner.CornerRadius = UDim.new(0,8)
 
     local title = Instance.new("TextLabel", header)
-    title.Size = UDim2.new(1, -8, 1, 0)
-    title.Position = UDim2.new(0, 6, 0, 0)
+    title.Size = UDim2.new(1,-100,1,0)
+    title.Position = UDim2.new(0,8,0,0)
     title.BackgroundTransparency = 1
-    title.Text = "Fake Block"
+    title.Text = "Fake Block - v1.5"
     title.Font = Enum.Font.GothamBold
     title.TextSize = 14
     title.TextColor3 = Color3.fromRGB(230,230,230)
     title.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Mode button (cycles modes)
     local modeBtn = Instance.new("TextButton", header)
     modeBtn.Name = "ModeBtn"
-    modeBtn.Size = UDim2.new(0, 84, 0, 24)
-    modeBtn.Position = UDim2.new(1, -92, 0, 4)
+    modeBtn.Size = UDim2.new(0, 92, 0, 24)
+    modeBtn.Position = UDim2.new(1, -96, 0, 6)
     modeBtn.Text = modes[modeIndex]
     modeBtn.Font = Enum.Font.Gotham
     modeBtn.TextSize = 13
     modeBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
     modeBtn.AutoButtonColor = true
-    local mbcorner = Instance.new("UICorner", modeBtn); mbcorner.CornerRadius = UDim.new(0,6)
+    Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0,6)
 
-    -- Body
+    -- body
     local body = Instance.new("Frame", frame)
     body.Name = "Body"
-    body.Size = UDim2.new(1, -8, 1, -36)
-    body.Position = UDim2.new(0, 4, 0, 36)
+    body.Size = UDim2.new(1,-8,1,-44)
+    body.Position = UDim2.new(0,4,0,40)
     body.BackgroundTransparency = 1
 
     local status = Instance.new("TextLabel", body)
     status.Name = "Status"
-    status.Size = UDim2.new(1, 0, 0, 16)
-    status.Position = UDim2.new(0, 0, 0, 0)
+    status.Size = UDim2.new(1,0,0,16)
+    status.Position = UDim2.new(0,0,0,0)
     status.BackgroundTransparency = 1
     status.Text = "Idle"
     status.Font = Enum.Font.Gotham
     status.TextSize = 12
-    status.TextColor3 = Color3.fromRGB(170,170,170)
-    status.TextXAlignment = Enum.TextXAlignment.Left
-
-    local playBtn = Instance.new("TextButton", body)
-    playBtn.Name = "Play"
-    playBtn.Size = UDim2.new(0.62, -8, 0, 36)
-    playBtn.Position = UDim2.new(0, 0, 1, -38)
-    playBtn.Text = "Play"
-    playBtn.Font = Enum.Font.GothamBold
-    playBtn.TextSize = 14
-    playBtn.BackgroundColor3 = Color3.fromRGB(110,55,230)
-    local pcorner = Instance.new("UICorner", playBtn); pcorner.CornerRadius = UDim.new(0,8)
-
-    local specialBtn = Instance.new("TextButton", body)
-    specialBtn.Name = "Special"
-    specialBtn.Size = UDim2.new(0.36, -8, 0, 36)
-    specialBtn.Position = UDim2.new(0.62, 6, 1, -38)
-    specialBtn.Text = "Special"
-    specialBtn.Font = Enum.Font.GothamBold
-    specialBtn.TextSize = 13
-    specialBtn.BackgroundColor3 = Color3.fromRGB(80,150,255)
-    local scorner = Instance.new("UICorner", specialBtn); scorner.CornerRadius = UDim.new(0,8)
-
-    -- Stamina small label (local-only display)
-    local staminaLabel = Instance.new("TextLabel", body)
-    staminaLabel.Name = "StaminaLabel"
-    staminaLabel.Size = UDim2.new(0, 92, 0, 16)
-    staminaLabel.Position = UDim2.new(1, -96, 0, 0)
-    staminaLabel.BackgroundTransparency = 1
-    staminaLabel.Text = "" -- filled when enabled
-    staminaLabel.Font = Enum.Font.Gotham
-    staminaLabel.TextSize = 12
-    staminaLabel.TextColor3 = Color3.fromRGB(170,170,170)
-    staminaLabel.TextXAlignment = Enum.TextXAlignment.Right
-
-    -- Mode cycle via modeBtn
-    modeBtn.MouseButton1Click:Connect(function()
-        modeIndex = modeIndex % #modes + 1
-        modeBtn.Text = modes[modeIndex]
-    end)
-
-    -- Play
-    playBtn.MouseButton1Click:Connect(function()
-        local m = modes[modeIndex]
-        if m == "Special" then
-            playAnimId(ANIM_SPECIAL_ID, status)
-        else
-            playByMode(m, status)
-        end
-    end)
-
-    -- Special direct
-    specialBtn.MouseButton1Click:Connect(function()
-        playAnimId(ANIM_SPECIAL_ID, status)
-    end)
-
-    -- Dragging (works for mouse & touch)
-    do
-        local dragging = false
-        local dragInput, dragStart, startPos
-
-        header.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = frame.Position
-                input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        dragging = false
-                    end
-                end)
-            end
-        end)
-
-        header.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                dragInput = input
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if input == dragInput and dragging then
-                local delta = input.Position - dragStart
-                -- clamp to screen bounds (basic)
-                local newX = math.clamp(startPos.X.Offset + delta.X, 0, math.max(0, workspace.CurrentCamera.ViewportSize.X - frame.AbsoluteSize.X))
-                local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, math.max(0, workspace.CurrentCamera.ViewportSize.Y - frame.AbsoluteSize.Y))
-                frame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
-            end
-        end)
-    end
-
-    -- Return refs
-    return {
-        sg = sg,
-        frame = frame,
-        modeBtn = modeBtn,
-        playBtn = playBtn,
-        specialBtn = specialBtn,
-        statusLabel = status,
-        staminaLabel = staminaLabel
-    }
-end
-
-local gui = createGui()
-
--- Local "infinite stamina" (display only)
-local staminaConn
-local staminaEnabled = false
-local function setLocalStamina()
-    local char = localPlayer.Character
-    if not char then return end
-    local v = char:FindFirstChild("LocalStamina")
-    if not v then
-        v = Instance.new("NumberValue")
-        v.Name = "LocalStamina"
-        v.Value = 9999
-        v.Parent = char
-    end
-    if v.Value < 9999 then v.Value = 9999 end
-end
-
-local function toggleLocalStamina(on)
-    if on == staminaEnabled then return end
-    staminaEnabled = on
-    if on then
-        setLocalStamina()
-        gui.staminaLabel.Text = "Stamina: 9999"
-        staminaConn = RunService.Heartbeat:Connect(function()
-            setLocalStamina()
-        end)
-    else
-        if staminaConn then staminaConn:Disconnect(); staminaConn = nil end
-        if localPlayer.Character then
-            local v = localPlayer.Character:FindFirstChild("LocalStamina")
-            if v then v:Destroy() end
-        end
-        gui.staminaLabel.Text = ""
-    end
-end
-
--- enable local stamina overlay by default (client-only)
-toggleLocalStamina(true)
-
--- Hotkeys
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        if input.KeyCode == Enum.KeyCode.Q then
-            local m = modes[modeIndex]
-            if m == "Special" then playAnimId(ANIM_SPECIAL_ID, gui.statusLabel) else playByMode(m, gui.statusLabel) end
-        elseif input.KeyCode == Enum.KeyCode.E then
-            playAnimId(ANIM_SPECIAL_ID, gui.statusLabel)
-        elseif input.KeyCode == Enum.KeyCode.X then
-            modeIndex = modeIndex % #modes + 1
-            -- update visible mode button
-            if gui and gui.modeBtn and gui.modeBtn.Parent then
-                gui.modeBtn.Text = modes[modeIndex]
-            end
-        end
-    end
-end)
-
--- refresh animator cache on respawn
-localPlayer.CharacterAdded:Connect(function()
-    animator = nil
-    wait(0.2)
-    if staminaEnabled then setLocalStamina() end
-end)
+    status.TextColor3 = Color3.from
